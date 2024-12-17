@@ -24,15 +24,17 @@ Hyper parameters
 """
 parser = argparse.ArgumentParser()
 parser.add_argument('--grounding-model', default="IDEA-Research/grounding-dino-tiny")
-parser.add_argument("--text-prompt", default="red bock. blue block.")
+parser.add_argument("--text-prompt", default="red block. blue block.")
 # parser.add_argument("--img-path", default="notebooks/images/truck.jpg")
 
 resolution = '512'
 parser.add_argument("--img-path", default="/ws/data/rgb/{}.jpg".format(resolution))
+#parser.add_argument("--img-path", default="./block.jpg".format(resolution))
 parser.add_argument("--sam2-checkpoint", default="./checkpoints/sam2.1_hiera_large.pt")
 parser.add_argument("--sam2-model-config", default="configs/sam2.1/sam2.1_hiera_l.yaml")
 # parser.add_argument("--output-dir", default="outputs/real2sim")
 parser.add_argument("--output-dir", default="/ws/data/label_{}".format(resolution) )
+
 parser.add_argument("--no-dump-json", action="store_true")
 parser.add_argument("--force-cpu", action="store_true")
 args = parser.parse_args()
@@ -76,6 +78,7 @@ text = TEXT_PROMPT
 img_path = IMG_PATH
 
 image = Image.open(img_path)
+rgb_np = np.array(image.convert("RGB"))
 
 sam2_predictor.set_image(np.array(image.convert("RGB")))
 
@@ -185,6 +188,20 @@ def rle_to_mask(rle: Dict[str, Any]) -> np.ndarray:
 
     return image
 
+# SAVE_CROPPED_OBJECT = True
+# if SAVE_CROPPED_OBJECT:
+#     for idx, box in enumerate(input_boxes, 0):
+#         print("box: ", box[3] -  box[1], " ", box[2] -  box[0])
+#         cropped_img = rgb_np[int(box[1]) : int(box[3]), int(box[0]) : int(box[2]), :] 
+#         image = Image.fromarray(cropped_img)
+
+#         # rgb_np[int(box[1]) : int(box[3]), int(box[0]) : int(box[2]), :] = np.array([255,0,0])
+#         # image = Image.fromarray(rgb_np)
+
+#         # Save the image as a grayscale PNG
+        
+
+
 if DUMP_JSON_RESULTS:
     # convert mask into rle format
     mask_rles = [single_mask_to_rle(mask) for mask in masks]
@@ -192,7 +209,19 @@ if DUMP_JSON_RESULTS:
     for idx, mask in enumerate(uncompressed_masks, 0):
 
         # Save the image as a grayscale PNG
-        mask.save('{}_msk.png'.format(idx))
+        mask.save('mask{}.png'.format(idx+1))
+        mask_01 = np.asarray(mask) // 255
+        invalid_idx = np.where(mask_01 == 0)
+        # print("invalid_idx: ", len(invalid_idx))
+        image = rgb_np
+        image[invalid_idx] = np.array([255,255,255])
+        # image = Image.fromarray(image)
+        box = input_boxes[idx]
+        print("box: ", box)
+        cropped_img = image[int(box[1]) : int(box[3]), int(box[0]) : int(box[2]), :] 
+        image = Image.fromarray(cropped_img)
+        image = image.resize( (256,256) )
+        image.save('{}.png'.format(idx))
 
     input_boxes = input_boxes.tolist()
     scores = scores.tolist()
